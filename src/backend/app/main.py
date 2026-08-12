@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from routers.devices import router
+from src.backend.app.routers.devices import router
 app = FastAPI(
     title="Polaris - Infrastructure Observability Platform",
     description="Polaris API",
-    version="1.0",
+    version="0.1",
 )
 
 app.include_router(router)

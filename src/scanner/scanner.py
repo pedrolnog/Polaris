@@ -1,8 +1,7 @@
 import socket
 import psutil
 from scapy.layers.l2 import Ether, ARP, srp
-from scan_models import Device
-from scanner.scan_models import ObservedDevice
+from src.scanner.scan_models import ObservedDevice
 
 
 def find_subnet() -> str | None:
@@ -45,24 +44,7 @@ def find_subnet() -> str | None:
 
     return None
 
-
-
-# def get_mac_vendor(mac_address : str) -> str | None:
-#     results = requests.get(f"https://api.maclookup.app/v2/macs/{mac_address}", timeout=5)
-#     results = results.json()
-#
-#     if not results.get("success"):
-#         raise "InvalidMacRequest"
-#
-#     elif not results.get("found"):
-#         print("MAC Vendor not found.")
-#         return None
-#
-#     else:
-#         return results.get("company")
-
-
-def scanner(subnet : str | None = find_subnet()) -> list[Device] | None:
+def scanner(subnet : str | None = find_subnet()) -> list[ObservedDevice] | None:
     broadcast_frame = Ether(dst="ff:ff:ff:ff:ff:ff")
     arp_request = ARP(pdst=subnet)
 
@@ -74,21 +56,6 @@ def scanner(subnet : str | None = find_subnet()) -> list[Device] | None:
     if answered:
         for sent, received in answered:
             device = ObservedDevice(ip_address=received.psrc, mac_address=received.hwsrc)
-
-#             try:
-#                 device.hostname = socket.gethostbyaddr(received.psrc)[0]
-#
-#             except socket.herror as e:
-#                 print(f"Error resolving {received.psrc}: {e.strerror} (Code: {e.errno})")
-#                 pass
-#
-#             except socket.gaierror as e:
-#                 print(f"Gaierror: Address format is invalid: {e}")
-#                 pass
-#
-#             except OSError as e:
-#                 print(f"OSError: {e}")
-#                 pass
 
             obs_device_list.append(device)
     else:
