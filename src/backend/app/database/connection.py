@@ -11,7 +11,7 @@ from src.backend.app.schemas.models import Scan
 
 @contextmanager
 def get_connection():
-    conn = psycopg.connect(dbname="test", user="postgres")
+    conn = psycopg.connect("dbname=test user=postgres password=WsZuOk.4")
 
     try:
         yield conn

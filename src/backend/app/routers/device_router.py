@@ -1,15 +1,14 @@
-from fastapi import APIRouter
-from database.connection import get_scan_history, save_scan
-from database.db_models import ScanHistory
-from src.scanner.scanner import scanner
+from fastapi import APIRouter, HTTPException
+from src.backend.app.database.connection import get_scan_history, save_scan
+from src.backend.app.database.db_models import ScanHistory
+from src.scanner.scanner import scanner, find_subnet
 from src.backend.app.services.scan_service import create_scan
 from src.backend.app.schemas.models import Scan
-
 device_router = APIRouter()
 
-@device_router.get("/devices", status_code=200, response_model=Scan)
-async def get_devices():
-    raw_data, net_interface = scanner()
+@device_router.get("/devices", status_code=200, response_model=Scan | None)
+async def get_devices(interface: str):
+    raw_data, net_interface = scanner(find_subnet(interface))
 
     device_data = create_scan(raw_data, net_interface)
 

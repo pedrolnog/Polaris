@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+
+from src.backend.app.routers.network_router import network_router
 from src.backend.app.routers.device_router import device_router
-from src.backend.app.database.connection import get_connection, create_table
+from src.backend.app.database.connection import create_table
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -16,3 +18,4 @@ app = FastAPI(
 )
 
 app.include_router(device_router)
+app.include_router(network_router)

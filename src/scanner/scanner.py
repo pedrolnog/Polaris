@@ -3,26 +3,14 @@ import psutil
 from scapy.layers.l2 import Ether, ARP, srp
 from src.scanner.scan_models import ObservedDevice
 
-
-def find_subnet(interface_name : str | None = None) -> tuple[str, str] | None:
+def list_interfaces():
     interfaces = psutil.net_if_addrs().keys()
 
-    if __name__ == "__main__" and interface_name is None:
-        interface_name = ""
-        while not interface_name in interfaces:
-            n = 0
-            print("Interfaces: ")
-            for i in interfaces:
-                n += 1
-                print(f" - {i}")
+    interface_list = [i for i in interfaces]
 
-            interface_name = input("Choose a network interface:\n")
+    return interface_list
 
-            if not interface_name in interfaces:
-                print("Interface not found. Try again.")
-    elif interface_name is None:
-        return None
-
+def find_subnet(interface_name : str) -> tuple[str, str] | None:
     interface_address = psutil.net_if_addrs().get(interface_name)
 
     for i in interface_address:
@@ -44,31 +32,24 @@ def find_subnet(interface_name : str | None = None) -> tuple[str, str] | None:
             subnet_address = f"{".".join(str(i) for i in net_address)}/{netmask_bit_count}"
 
             return subnet_address, interface_name
+    raise RuntimeError(f"Invalid interface ({interface_name}) or no active IPv4.")
 
-    return None
+def scanner(info : tuple[str, str]) -> tuple[list[ObservedDevice], str]:
+    broadcast_frame = Ether(dst="ff:ff:ff:ff:ff:ff")
+    arp_request = ARP(pdst=info[0])
 
-def scanner(info : tuple[str, str] | None = None) -> tuple[list[ObservedDevice], str] | None:
-    if info is None:
-        info = find_subnet()
+    packet = broadcast_frame / arp_request
 
-    if info is not None:
-        broadcast_frame = Ether(dst="ff:ff:ff:ff:ff:ff")
-        arp_request = ARP(pdst=info[0])
+    answered, _ = srp(packet, timeout=2, verbose=False)
 
-        packet = broadcast_frame / arp_request
+    obs_device_list = []
+    if answered:
+        for sent, received in answered:
+            device = ObservedDevice(ip_address=received.psrc, mac_address=received.hwsrc)
 
-        answered, _ = srp(packet, timeout=2, verbose=False)
-
-        obs_device_list = []
-        if answered:
-            for sent, received in answered:
-                device = ObservedDevice(ip_address=received.psrc, mac_address=received.hwsrc)
-
-                obs_device_list.append(device)
-        else:
-            print("No devices found.")
-            return [], info[1]
-
-        return obs_device_list, info[1]
+            obs_device_list.append(device)
     else:
-        return None
+        print("No devices found.")
+        return [], info[1]
+
+    return obs_device_list, info[1]
