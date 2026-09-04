@@ -1,9 +1,18 @@
 from fastapi import FastAPI
-from src.backend.app.routers.devices import router
+from contextlib import asynccontextmanager
+from src.backend.app.routers.device_router import device_router
+from src.backend.app.database.connection import get_connection, create_table
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    create_table()
+    yield
+
 app = FastAPI(
     title="Polaris - Infrastructure Observability Platform",
     description="Polaris API",
     version="0.1",
+    lifespan=lifespan,
 )
 
-app.include_router(router)
+app.include_router(device_router)
