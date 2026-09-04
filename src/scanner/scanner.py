@@ -10,28 +10,32 @@ def list_interfaces():
 
     return interface_list
 
-def find_subnet(interface_name : str) -> tuple[str, str] | None:
+def find_subnet(interface_name : str) -> tuple[str, str]:
     interface_address = psutil.net_if_addrs().get(interface_name)
 
-    for i in interface_address:
-        if i.family == socket.AF_INET:
+    if interface_address:
+        for i in interface_address:
+            if i.family == socket.AF_INET:
 
-            address = i.address.split(".")
-            bin_address = [int(x) for x in address]
+                address = i.address.split(".")
+                bin_address = [int(x) for x in address]
 
-            netmask = i.netmask.split(".")
-            bin_netmask = [int(x) for x in netmask]
+                netmask = i.netmask.split(".")
+                bin_netmask = [int(x) for x in netmask]
 
-            netmask_bit_count = 0
+                netmask_bit_count = 0
 
-            for n in bin_netmask:
-                netmask_bit_count += n.bit_count()
+                for n in bin_netmask:
+                    netmask_bit_count += n.bit_count()
 
-            net_address = [(bin_address[i] & bin_netmask[i]) for i in range(len(bin_address))]
+                net_address = [(bin_address[i] & bin_netmask[i]) for i in range(len(bin_address))]
 
-            subnet_address = f"{".".join(str(i) for i in net_address)}/{netmask_bit_count}"
+                subnet_address = f"{".".join(str(i) for i in net_address)}/{netmask_bit_count}"
 
-            return subnet_address, interface_name
+                return subnet_address, interface_name
+    else:
+        raise ValueError(f"Invalid interface name ({interface_name}).")
+
     raise RuntimeError(f"Invalid interface ({interface_name}) or no active IPv4.")
 
 def scanner(info : tuple[str, str]) -> tuple[list[ObservedDevice], str]:
@@ -49,7 +53,6 @@ def scanner(info : tuple[str, str]) -> tuple[list[ObservedDevice], str]:
 
             obs_device_list.append(device)
     else:
-        print("No devices found.")
         return [], info[1]
 
     return obs_device_list, info[1]

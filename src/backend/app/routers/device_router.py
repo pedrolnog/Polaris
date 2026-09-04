@@ -8,9 +8,17 @@ device_router = APIRouter()
 
 @device_router.get("/devices", status_code=200, response_model=Scan | None)
 async def get_devices(interface: str):
-    raw_data, net_interface = scanner(find_subnet(interface))
+    try:
+        raw_data, net_interface = scanner(find_subnet(interface))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     device_data = create_scan(raw_data, net_interface)
+    save_scan(device_data)
 
     return device_data
 
