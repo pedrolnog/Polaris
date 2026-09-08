@@ -10,5 +10,5 @@ def create_scan(raw_data : list[ObservedDevice], net_interface : str) -> Scan:
     return Scan(
         scan_datetime=dt.datetime.now(),
         observed_network=network,
-        raw_scan_data=raw_data
+        scan_data=raw_data
     )

@@ -5,7 +5,7 @@ from src.scanner.scan_models import ObservedDevice
 
 
 class Device(BaseModel):
-    id : int
+    id : str = Field(default_factory=lambda: str(uuid6.uuid7()))
     mac_address: str
     ip_address: str
     hostname: str | None = None
@@ -14,6 +14,7 @@ class Device(BaseModel):
     name: str  | None = None
 
 class Network(BaseModel):
+    id : str = Field(default_factory=lambda: str(uuid6.uuid7()))
     name : str
     description : str | None = None
     device_list : list[Device] | None = None
@@ -22,4 +23,4 @@ class Scan(BaseModel):
     id : str = Field(default_factory=lambda: str(uuid6.uuid7()))
     scan_datetime : datetime.datetime
     observed_network : Network
-    raw_scan_data : list[ObservedDevice]
+    scan_data : list[ObservedDevice]
