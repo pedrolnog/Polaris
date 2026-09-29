@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS scans(
     network_id UUID NOT NULL REFERENCES networks(id) ON DELETE CASCADE,
     scan_datetime TIMESTAMPTZ DEFAULT NOW(),
     devices_found INTEGER NOT NULL DEFAULT 0
-    scan_data
 );
 
 CREATE TABLE IF NOT EXISTS devices (

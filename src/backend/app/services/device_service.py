@@ -1,9 +1,18 @@
-from src.backend.app.schemas.models import Device
+from src.backend.app.database.connection import get_connection
+from src.backend.app.schemas.models import Device, Network
 from src.scanner.scan_models import ObservedDevice
-from src.scanner.scanner import scanner
 import httpx
 import asyncio
 import socket
+
+def get_or_create_network(network_name : str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        network = cursor.execute(f"SELECT id, cidr, description FROM networks WHERE name = '{network_name}'")
+        if network:
+            return Network(id=network[0], name=network_name, description=network[2])
+        else:
+            return Network(name=network_name)
 
 async def get_mac_vendor(mac_address : str) -> str | None:
     async with httpx.AsyncClient() as client:
@@ -45,10 +54,7 @@ async def get_hostname(ip: str) -> str | None:
         print(f"OSError: {e}")
         return None
 
-async def get_device_netdata(devices: list[ObservedDevice] | None = None) -> list[Device] | None:
-    if devices is None:
-        devices = scanner()
-
+async def get_device_netdata(devices: list[ObservedDevice]) -> list[Device] | None:
     if not devices:
         return []
 
@@ -59,7 +65,6 @@ async def get_device_netdata(devices: list[ObservedDevice] | None = None) -> lis
         hostname, mac_vendor = await asyncio.gather(hostname_task, vendor_task)
     
         return Device(
-            id = index,
             mac_address=item.mac_address,
             ip_address=item.ip_address,
             hostname=hostname,

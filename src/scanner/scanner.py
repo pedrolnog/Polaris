@@ -44,7 +44,7 @@ def scanner(info : tuple[str, str]) -> tuple[list[ObservedDevice], str]:
 
     packet = broadcast_frame / arp_request
 
-    answered, _ = srp(packet, timeout=2, verbose=False)
+    answered, _ = srp(packet, iface=info[1], timeout=2, verbose=False)
 
     obs_device_list = []
     if answered:
