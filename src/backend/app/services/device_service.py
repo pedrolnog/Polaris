@@ -1,18 +1,8 @@
-from src.backend.app.database.connection import get_connection
 from src.backend.app.schemas.models import Device, Network
 from src.scanner.scan_models import ObservedDevice
 import httpx
 import asyncio
 import socket
-
-def get_or_create_network(network_name : str):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        network = cursor.execute(f"SELECT id, cidr, description FROM networks WHERE name = '{network_name}'")
-        if network:
-            return Network(id=network[0], name=network_name, description=network[2])
-        else:
-            return Network(name=network_name)
 
 async def get_mac_vendor(mac_address : str) -> str | None:
     async with httpx.AsyncClient() as client:

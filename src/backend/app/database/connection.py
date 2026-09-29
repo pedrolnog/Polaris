@@ -4,15 +4,13 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 from src.backend.app.database.db_models import ScanHistory
-from src.backend.app.schemas.models import Scan
+from src.backend.app.schemas.models import Scan, Network
 
 SCHEMA_FILE = Path(__file__).parent / "schema.sql"
-
 
 @contextmanager
 def get_connection():
     conn = psycopg.connect("dbname=polaris_db user=postgres password=WsZuOk.4") # Tira a password
-
     try:
         yield conn
     finally:
@@ -28,19 +26,10 @@ def create_table() -> None:
 def save_scan(scan : Scan) -> None:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id from networks WHERE name = %s", (scan.observed_network.name,))
-        if cursor.fetchone():
-            cursor.execute(
-                "INSERT INTO scans (id, network_id, scan_datetime, devices_found) VALUES (%s, %s, %s, %s)",
-                (scan.id, scan.observed_network.id, dt.datetime.now(), len(scan.scan_data))
-            )
-        else:
-            cursor.execute("INSERT INTO networks (id, name) VALUES (%s, %s)",
-                           (scan.observed_network.id, scan.observed_network.name))
-            cursor.execute(
-                "INSERT INTO scans (id, network_id, scan_datetime, devices_found) VALUES (%s, %s, %s, %s)",
-                (scan.id, scan.observed_network.id, dt.datetime.now(), len(scan.scan_data))
-            )
+        cursor.execute(
+            "INSERT INTO scans (id, network_id, scan_datetime, devices_found) VALUES (%s, %s, %s, %s)",
+            (scan.id, scan.observed_network.id, dt.datetime.now(), len(scan.scan_data))
+        )
         cursor.close()
         conn.commit()
 
@@ -57,3 +46,19 @@ def get_scan_history(identification : str | None = None, mac_address : str | Non
         cursor.close()
 
         return [ScanHistory(**row) for row in history]
+
+def get_or_create_network(network_name : str):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, cidr, description FROM networks WHERE name = %s", (network_name, ))
+        network = cursor.fetchone()
+        if network:
+            cursor.close()
+            conn.commit()
+            return Network(id=str(network[0]), name=network_name, description=network[2])
+        else:
+            network = Network(name=network_name)
+            cursor.execute("INSERT INTO networks (id, name) VALUES (%s, %s)", (network.id, network_name))
+            cursor.close()
+            conn.commit()
+            return network
