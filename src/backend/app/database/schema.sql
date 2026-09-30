@@ -34,9 +34,10 @@ CREATE TABLE IF NOT EXISTS devices (
 
 CREATE TABLE IF NOT EXISTS changes (
     id UUID PRIMARY KEY,
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    changed_device UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
     scan_id UUID REFERENCES scans(id) ON DELETE CASCADE,
-    change_type VARCHAR(32) NOT NULL,
+    change_type_id VARCHAR(32) NOT NULL,
+    description TEXT,
     old_value TEXT,
     new_value TEXT,
     detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
