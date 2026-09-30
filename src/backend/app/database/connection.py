@@ -10,7 +10,7 @@ from src.backend.app.database.db_models import ScanHistory
 from src.backend.app.schemas.models import Scan, Network, Device
 
 SCHEMA_FILE = Path(__file__).parent / "schema.sql"
-ALLOWED_FIELDS = {"status", "ip_address", "hostname", "custom_name"}
+ALLOWED_FIELDS = {"status", "ip_address", "hostname", "custom_name", "mac_vendor"}
 load_dotenv(find_dotenv())
 
 @contextmanager
@@ -125,15 +125,20 @@ def save_observed_device(scan : Scan):
         cursor.close()
         conn.commit()
 
-def update_device(device : Device, parameter : str, new_value : str) -> None:
+def update_device(device : Device | str, parameter : str, new_value : str) -> None:
     if parameter not in ALLOWED_FIELDS:
         raise ValueError(f"Invalid parameter: {parameter}")
 
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            f"UPDATE devices SET {parameter} = %s WHERE id = %s", (new_value, device.id)
-        )
+        if type(device) is not Device:
+            cursor.execute(
+                f"UPDATE devices SET {parameter} = %s WHERE id = %s", (new_value, device)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE devices SET {parameter} = %s WHERE id = %s", (new_value, device.id)
+            )
         cursor.close()
         conn.commit()
 

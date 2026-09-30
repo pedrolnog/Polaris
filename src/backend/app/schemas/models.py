@@ -1,13 +1,16 @@
 import datetime
+from ipaddress import IPv4Address
+
 import uuid6
+from uuid import UUID
 from pydantic import BaseModel, Field
 from src.scanner.scan_models import ObservedDevice
 
 
 class Device(BaseModel):
-    id : str = Field(default_factory=lambda: str(uuid6.uuid7()))
+    id : UUID | str = Field(default_factory=lambda: str(uuid6.uuid7()))
     mac_address: str
-    ip_address: str
+    ip_address: IPv4Address | str
     description : str | None = None
     status : str | None = None
     hostname: str | None = None

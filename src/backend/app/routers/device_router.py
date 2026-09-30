@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
+from src.backend.app.services.device_service import enrich_devices_task
 from src.backend.app.services.changes_service import check_changes
 from src.backend.app.database.connection import get_scan_history, save_scan, save_observed_device, save_changes, \
     get_changes, get_all_devices
@@ -11,7 +12,7 @@ from src.backend.app.schemas.models import Scan, Change
 device_router = APIRouter()
 
 @device_router.get("/scan", status_code=200, response_model=Scan | None)
-async def scan(interface: str):
+async def scan(interface: str, background_tasks: BackgroundTasks):
     try:
         raw_data, net_interface = scanner(find_subnet(interface))
     except ValueError as e:
@@ -32,6 +33,11 @@ async def scan(interface: str):
 
     changes_list = check_changes(previous_devices, current_devices, raw_data, device_data.id)
     save_changes(changes_list)
+
+    new_device_ids = [c.changed_device for c in changes_list if c.change_type_id == "003"]
+    print(new_device_ids)
+    if new_device_ids:
+        background_tasks.add_task(enrich_devices_task, new_device_ids)
 
     return device_data
 

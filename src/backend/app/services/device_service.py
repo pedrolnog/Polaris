@@ -1,3 +1,6 @@
+from ipaddress import IPv4Address
+
+from src.backend.app.database.connection import update_device, get_device
 from src.backend.app.schemas.models import Device, Network
 from src.scanner.scan_models import ObservedDevice
 import httpx
@@ -26,13 +29,15 @@ async def get_mac_vendor(mac_address : str) -> str | None:
         print("MAC Vendor not found.")
         return None
     else:
+        print("MAC Vendor found.")
         return data.get("company")
 
-async def get_hostname(ip: str) -> str | None:
+async def get_hostname(ip: str | IPv4Address) -> str | None:
     loop = asyncio.get_running_loop()
+    ip_str = str(ip)
 
     try:
-         result = await loop.run_in_executor(None, socket.gethostbyaddr, ip)
+         result = await loop.run_in_executor(None, socket.gethostbyaddr, ip_str)
          return result[0]
     except socket.herror as e:
         print(f"Error resolving {ip}: {e.strerror} (Code: {e.errno})")
@@ -66,4 +71,17 @@ async def get_device_netdata(devices: list[ObservedDevice]) -> list[Device] | No
 
     return device_list
 
+async def enrich_devices_task(devices_ids : list[str]) -> None:
+    for uuid in devices_ids:
+        try:
+            device = get_device(uuid)
+            hostname = await get_hostname(device.ip_address)
+            if hostname:
+                update_device(uuid, "hostname", hostname)
+
+            mac_vendor = await get_mac_vendor(device.mac_address)
+            if mac_vendor:
+                update_device(uuid, "mac_vendor", mac_vendor)
+        except Exception as e:
+            print(f"Error enriching device ({uuid}): {e}")
 

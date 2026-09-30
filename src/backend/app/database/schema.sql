@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS devices (
     network_id UUID NOT NULL REFERENCES networks(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     mac_address MACADDR NOT NULL,
+    mac_vendor TEXT,
     ip_address INET NOT NULL,
     hostname TEXT,
     custom_name TEXT,
