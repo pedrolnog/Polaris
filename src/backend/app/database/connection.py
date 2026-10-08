@@ -2,24 +2,30 @@ import os
 from contextlib import contextmanager
 import datetime as dt
 from pathlib import Path
-import psycopg
+from uuid import UUID
+from psycopg_pool import ConnectionPool
 from dotenv import load_dotenv, find_dotenv
 from psycopg.rows import dict_row
-from src.backend.app.schemas.models import Change
 from src.backend.app.database.db_models import ScanHistory
-from src.backend.app.schemas.models import Scan, Network, Device
+from src.backend.app.schemas.models import Scan, Network, Device, Change
 
 SCHEMA_FILE = Path(__file__).parent / "schema.sql"
 ALLOWED_FIELDS = {"status", "ip_address", "hostname", "custom_name", "mac_vendor"}
 load_dotenv(find_dotenv())
 
+DB_URI = f"dbname=polaris_db user={os.getenv("DB_USER")} password={os.getenv("DB_PASS")}"
+
+pool = ConnectionPool(
+    conninfo=DB_URI,
+    min_size=2,
+    max_size=10,
+    open=True
+)
+
 @contextmanager
 def get_connection():
-    conn = psycopg.connect(f"dbname=polaris_db user={os.getenv("DB_USER")} password={os.getenv("DB_PASS")}")
-    try:
+    with pool.connection() as conn:
         yield conn
-    finally:
-        conn.close()
 
 def create_table() -> None:
     sql_script = SCHEMA_FILE.read_text(encoding="utf-8")
@@ -57,13 +63,13 @@ def get_scan_history(identification : str | None = None, mac_address : str | Non
 
 # DEVICES
 
-def get_device(id : str | None = None, mac_address : str | None = None, name : str | None = None) -> Device:
+def get_device(id : UUID | str | None = None, mac_address : str | None = None, name : str | None = None) -> Device:
     with get_connection() as conn:
         cursor = conn.cursor(row_factory=dict_row)
         if id:
             cursor.execute(
                 "SELECT * FROM devices WHERE id = %s",
-                (id,)
+                (str(id),)
             )
             device = cursor.fetchone()
             if device:
@@ -100,27 +106,17 @@ def get_all_devices() -> list[Device]:
         devices = cursor.fetchall()
         cursor.close()
 
-        device_list = []
-
-        for row in devices:
-            for key in row.keys():
-                if type(row[key]) is not str:
-                    row[key] = str(row[key])
-
-            device_list.append(Device(**row))
-
-
-        return device_list
+        return [Device(**row) for row in devices]
 
 def save_observed_device(scan : Scan):
     with get_connection() as conn:
         cursor = conn.cursor()
         for device in scan.scan_data:
-            d = Device(mac_address=device.mac_address, ip_address=device.ip_address)
+            d = Device(mac_address=device.mac_address, ip_address=device.ip_address, network_id=scan.observed_network.id)
 
             cursor.execute(
                 "INSERT INTO devices (id, mac_address, ip_address, network_id, last_seen, status) VALUES (%s, %s, %s, %s, NOW(), 'ONLINE') ON CONFLICT (network_id, mac_address) DO UPDATE SET ip_address = EXCLUDED.ip_address, last_seen = NOW(), status = 'ONLINE';",
-                (d.id, d.mac_address, d.ip_address, scan.observed_network.id)
+                (d.id, d.mac_address, d.ip_address, d.network_id)
             )
         cursor.close()
         conn.commit()
@@ -152,13 +148,31 @@ def get_or_create_network(network_name : str):
         if network:
             cursor.close()
             conn.commit()
-            return Network(id=str(network[0]), name=network_name, description=network[2])
+            return Network(id=str(network[0]), name=network_name, cidr=network[1], description=network[2])
         else:
             network = Network(name=network_name)
             cursor.execute("INSERT INTO networks (id, name) VALUES (%s, %s)", (network.id, network_name))
             cursor.close()
             conn.commit()
             return network
+
+def get_all_networks() -> list[Network]:
+    with get_connection() as conn:
+        cursor = conn.cursor(row_factory=dict_row)
+        cursor.execute("SELECT * FROM networks")
+        networks = cursor.fetchall()
+        cursor.close()
+
+    return [Network(**row) for row in networks]
+
+def get_network_devices(network_id : str) -> list[Device]:
+    with get_connection() as conn:
+        cursor = conn.cursor(row_factory=dict_row)
+        cursor.execute("SELECT * FROM devices WHERE network_id = %s", (network_id, ))
+        devices = cursor.fetchall()
+        cursor.close()
+
+    return [Device(**row) for row in devices]
 
 # CHANGES
 
@@ -175,7 +189,7 @@ def save_changes(changes : list[Change]) -> None:
 def get_changes() -> list[Change]:
     with get_connection() as conn:
         cursor = conn.cursor(row_factory=dict_row)
-        cursor.execute("SELECT * FROM changes")
+        cursor.execute("SELECT * FROM changes ORDER BY detected_at DESC")
         changes = cursor.fetchall()
         cursor.close()
 
@@ -186,7 +200,6 @@ def get_changes() -> list[Change]:
                 if type(row[key]) is not str:
                     row[key] = str(row[key])
 
-            print("\n\n" + str(row) + "\n\n")
             change_list.append(Change(**row))
 
         return change_list

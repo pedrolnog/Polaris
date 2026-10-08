@@ -1,5 +1,7 @@
 import socket
 import psutil
+import ipaddress
+
 from scapy.layers.l2 import Ether, ARP, srp
 from src.scanner.scan_models import ObservedDevice
 
@@ -10,6 +12,26 @@ def list_interfaces():
 
     return interface_list
 
+# Checa se a rede é válida para escaneamento
+def is_valid_network(subnet_str: str) -> bool:
+    try:
+        net = ipaddress.IPv4Network(subnet_str, strict=False)
+
+        if net.is_loopback or net.is_link_local:
+            return False
+
+        if not net.is_private:
+            return False
+
+        # Caso a rede tenha uma submáscara grande, é ignorada.
+        if net.prefixlen < 20:
+            return False
+
+        return True
+    except ValueError:
+        return False
+
+# Faz o tratamento e retorna a sub-rede
 def find_subnet(interface_name : str) -> tuple[str, str]:
     interface_address = psutil.net_if_addrs().get(interface_name)
 
@@ -37,6 +59,22 @@ def find_subnet(interface_name : str) -> tuple[str, str]:
         raise ValueError(f"Invalid interface name ({interface_name}).")
 
     raise RuntimeError(f"Invalid interface ({interface_name}) or no active IPv4.")
+
+def find_all_subnets() -> list[tuple[str, str]]:
+    interfaces = list_interfaces()
+    subnet_list = []
+
+    for i in interfaces:
+        try:
+            subnet, iface = find_subnet(i)
+
+            if is_valid_network(subnet):
+                subnet_list.append((subnet, iface))
+
+        except (RuntimeError, ValueError):
+            continue
+
+    return subnet_list
 
 def scanner(info : tuple[str, str]) -> tuple[list[ObservedDevice], str]:
     broadcast_frame = Ether(dst="ff:ff:ff:ff:ff:ff")

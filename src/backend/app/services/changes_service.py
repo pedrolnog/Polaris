@@ -1,5 +1,5 @@
 import datetime
-from src.backend.app.database.connection import update_device
+from src.backend.app.database.connection import update_device, get_device
 from src.scanner.scan_models import ObservedDevice
 from src.backend.app.schemas.models import Change, Device
 
@@ -11,15 +11,27 @@ def check_changes(previous_devices : list[Device], current_devices : list[Device
 
     for current_device in current_devices:
         if current_device.mac_address not in previous_macs:
-            change = Change(
-                changed_device=current_device.id,
-                scan_id=scan_id,
-                detected_at=datetime.datetime.now(),
-                change_type_id="003",
-                old_value=None,
-                new_value="ONLINE",
-                description=f"Device ({current_device.mac_address}) has gone online."
-            )
+            try:
+                get_device(current_device.id)
+                change = Change(
+                    changed_device=current_device.id,
+                    scan_id=scan_id,
+                    detected_at=datetime.datetime.now(),
+                    change_type_id="004",
+                    old_value=None,
+                    new_value="ONLINE",
+                    description=f"Device ({current_device.mac_address}) is now online."
+                )
+            except ValueError:
+                change = Change(
+                    changed_device=current_device.id,
+                    scan_id=scan_id,
+                    detected_at=datetime.datetime.now(),
+                    change_type_id="003",
+                    old_value=None,
+                    new_value="ONLINE",
+                    description=f"Device ({current_device.mac_address}) has connected for the first time."
+                )
             changes.append(change)
         else:
             previous_mac = previous_macs[current_device.mac_address]
