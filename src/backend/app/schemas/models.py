@@ -17,7 +17,7 @@ class Device(BaseModel):
     description : str | None = None
     status : str | None = None
     hostname: str | None = None
-    category: str | None = None
+    category_id: UUID | str | None = None
     mac_vendor: str | None = None
     custom_name: str  | None = None
 
@@ -43,6 +43,6 @@ class Change(BaseModel):
     changed_device : UUID | str
     change_type_id : str
     old_value : IPv4Address | str | None = None
-    new_value : IPv4Address | str | str
+    new_value : IPv4Address | str
     description : str
     detected_at : datetime.datetime

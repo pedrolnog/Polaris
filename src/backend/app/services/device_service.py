@@ -1,26 +1,24 @@
 from ipaddress import IPv4Address
 
 from src.backend.app.database.connection import update_device, get_device
-from src.backend.app.schemas.models import Device, Network
-from src.scanner.scan_models import ObservedDevice
+from src.backend.app.schemas.models import Device
 import httpx
 import asyncio
 import socket
 
-async def get_mac_vendor(mac_address : str) -> str | None:
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(f"https://api.maclookup.app/v2/macs/{mac_address}", timeout=5)
+async def get_mac_vendor(mac_address : str, client: httpx.AsyncClient) -> str | None:
+    try:
+        response = await client.get(f"https://api.maclookup.app/v2/macs/{mac_address}", timeout=5)
 
-            if response.status_code != 200:
-                print(f"API Error. Status code: {response.status_code}")
-                return None
-
-            data = response.json()
-
-        except httpx.RequestError as e:
-            print(f"Unable to reach API: {e}")
+        if response.status_code != 200:
+            print(f"API Error. Status code: {response.status_code}")
             return None
+
+        data = response.json()
+
+    except httpx.RequestError as e:
+        print(f"Unable to reach API: {e}")
+        return None
 
     if not data.get("success"):
         return None
@@ -37,7 +35,11 @@ async def get_hostname(ip: str | IPv4Address) -> str | None:
     ip_str = str(ip)
 
     try:
-         result = await loop.run_in_executor(None, socket.gethostbyaddr, ip_str)
+         result = await loop.run_in_executor(
+             None,
+             socket.gethostbyaddr,
+             ip_str
+         )
          return result[0]
     except socket.herror as e:
         print(f"Error resolving {ip}: {e.strerror} (Code: {e.errno})")
@@ -49,39 +51,30 @@ async def get_hostname(ip: str | IPv4Address) -> str | None:
         print(f"OSError: {e}")
         return None
 
-async def get_device_netdata(devices: list[ObservedDevice]) -> list[Device] | None:
-    if not devices:
-        return []
-
-    async def process_device(index, item):
-        hostname_task = get_hostname(item.ip_address)
-        vendor_task = get_mac_vendor(item.mac_address)
-
-        hostname, mac_vendor = await asyncio.gather(hostname_task, vendor_task)
-    
-        return Device(
-            mac_address=item.mac_address,
-            ip_address=item.ip_address,
-            hostname=hostname,
-            mac_vendor=mac_vendor
-        )
-
-    tasks = [process_device(index, device) for index, device in enumerate(devices, start=1)]
-    device_list = await asyncio.gather(*tasks) # * (unpacking)
-
-    return device_list
-
-async def enrich_devices_task(devices_ids : list[str]) -> None:
-    for uuid in devices_ids:
+async def _enrich_single_device(uuid : str, client : httpx.AsyncClient, semaphore : asyncio.Semaphore) -> Device | None:
+    async with semaphore: # Garante no máximo N dispositivos sendo processados simultaneamente
         try:
             device = get_device(uuid)
-            hostname = await get_hostname(device.ip_address)
+
+            hostname_task = get_hostname(device.ip_address)
+            mac_task = get_mac_vendor(device.mac_address, client)
+
+            hostname, mac_vendor = await asyncio.gather(hostname_task, mac_task)
+
             if hostname:
                 update_device(uuid, "hostname", hostname)
-
-            mac_vendor = await get_mac_vendor(device.mac_address)
             if mac_vendor:
                 update_device(uuid, "mac_vendor", mac_vendor)
+
         except Exception as e:
             print(f"Error enriching device ({uuid}): {e}")
 
+async def enrich_devices_task(devices_ids : list[str]) -> None:
+    if not devices_ids:
+        return
+
+    # Limita a 5 dispositivos simultâneos para evitar rate limit
+    semaphore = asyncio.Semaphore(5)
+    async with httpx.AsyncClient() as client:
+        tasks = [_enrich_single_device(uuid, client, semaphore) for uuid in devices_ids]
+        await asyncio.gather(*tasks)

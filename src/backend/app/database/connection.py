@@ -47,7 +47,7 @@ def save_scan(scan : Scan) -> None:
         conn.commit()
 
 
-def get_scan_history(identification : str | None = None, mac_address : str | None = None) -> list[ScanHistory]:
+def get_scan_history(identification : str | None = None) -> list[ScanHistory]:
     with get_connection() as conn:
         cursor = conn.cursor(row_factory=dict_row)
 
@@ -140,21 +140,35 @@ def update_device(device : Device | str, parameter : str, new_value : str) -> No
 
 # NETWORK
 
-def get_or_create_network(network_name : str):
+def get_network(network_id : str | None = None, network_name : str | None = None) -> Network:
+    with get_connection() as conn:
+        cursor = conn.cursor(row_factory=dict_row)
+        if network_name:
+            cursor.execute("SELECT * FROM networks WHERE name = %s", (network_name, ))
+
+        elif network_id:
+            cursor.execute("SELECT * FROM networks WHERE id = %s", (network_id, ))
+        else:
+            raise ValueError("Either network_name or network_id must be provided.")
+
+        network = cursor.fetchone()
+        cursor.close()
+
+        if network:
+            return Network(**network)
+        else:
+            raise ValueError("Network not found.")
+
+
+def create_network(network_name : str) -> Network:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, cidr, description FROM networks WHERE name = %s", (network_name, ))
-        network = cursor.fetchone()
-        if network:
-            cursor.close()
-            conn.commit()
-            return Network(id=str(network[0]), name=network_name, cidr=network[1], description=network[2])
-        else:
-            network = Network(name=network_name)
-            cursor.execute("INSERT INTO networks (id, name) VALUES (%s, %s)", (network.id, network_name))
-            cursor.close()
-            conn.commit()
-            return network
+        network = Network(name=network_name)
+        cursor.execute("INSERT INTO networks (id, name) VALUES (%s, %s)", (network.id, network_name))
+        cursor.close()
+        conn.commit()
+
+    return network
 
 def get_all_networks() -> list[Network]:
     with get_connection() as conn:
@@ -186,10 +200,10 @@ def save_changes(changes : list[Change]) -> None:
         cursor.close()
         conn.commit()
 
-def get_changes() -> list[Change]:
+def get_changes(limit : int, offset : int) -> list[Change]:
     with get_connection() as conn:
         cursor = conn.cursor(row_factory=dict_row)
-        cursor.execute("SELECT * FROM changes ORDER BY detected_at DESC")
+        cursor.execute("SELECT * FROM changes ORDER BY detected_at DESC LIMIT %s OFFSET %s", (limit, offset, ))
         changes = cursor.fetchall()
         cursor.close()
 

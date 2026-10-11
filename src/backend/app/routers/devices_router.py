@@ -22,5 +22,8 @@ async def get_device_by_id(device_id: str):
 
 @devices_router.patch("/devices/{device_id}", status_code=200, response_model=Device)
 async def rename_device(device_id : str, payload : DeviceRenameRequest):
-    update_device(device_id, "custom_name", payload.new_name)
-    return get_device(device_id)
+    try:
+        update_device(device_id, "custom_name", payload.new_name)
+        return get_device(device_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Device not found")

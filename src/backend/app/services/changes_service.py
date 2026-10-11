@@ -1,5 +1,5 @@
 import datetime
-from src.backend.app.database.connection import update_device, get_device
+from src.backend.app.database.connection import update_device
 from src.scanner.scan_models import ObservedDevice
 from src.backend.app.schemas.models import Change, Device
 
@@ -10,40 +10,44 @@ def check_changes(previous_devices : list[Device], current_devices : list[Device
     changes = []
 
     for current_device in current_devices:
+
+        # CASO 1: Dispositivo novo (nunca visto nesta rede antes)
         if current_device.mac_address not in previous_macs:
-            try:
-                get_device(current_device.id)
-                change = Change(
+            change = Change(
+                changed_device=current_device.id,
+                scan_id=scan_id,
+                detected_at=datetime.datetime.now(),
+                change_type_id="003",
+                old_value=None,
+                new_value="ONLINE",
+                description=f"Device ({current_device.mac_address}) has connected for the first time."
+            )
+            changes.append(change)
+        else:
+            previous_mac = previous_macs[current_device.mac_address]
+
+            # CASO 2: Dispositivo já conhecido que estava OFFLINE e voltou a ficar ONLINE
+            if previous_mac.status == "OFFLINE":
+                changes.append(Change(
                     changed_device=current_device.id,
                     scan_id=scan_id,
                     detected_at=datetime.datetime.now(),
                     change_type_id="004",
-                    old_value=None,
+                    old_value="OFFLINE",
                     new_value="ONLINE",
                     description=f"Device ({current_device.mac_address}) is now online."
-                )
-            except ValueError:
-                change = Change(
-                    changed_device=current_device.id,
-                    scan_id=scan_id,
-                    detected_at=datetime.datetime.now(),
-                    change_type_id="003",
-                    old_value=None,
-                    new_value="ONLINE",
-                    description=f"Device ({current_device.mac_address}) has connected for the first time."
-                )
-            changes.append(change)
-        else:
-            previous_mac = previous_macs[current_device.mac_address]
-            if previous_mac.ip_address != current_device.ip_address:
+                ))
+
+            # CASO 3: Dispositivo trocou de IP
+            if str(previous_mac.ip_address) != str(current_device.ip_address):
                 changes.append(Change(
                     changed_device=current_device.id,
                     scan_id=scan_id,
                     detected_at=datetime.datetime.now(),
                     change_type_id="002",
-                    old_value=previous_mac.ip_address,
-                    new_value=current_device.ip_address,
-                    description = f"IP Changed from {previous_mac.ip_address} to {current_device.ip_address}."
+                    old_value=str(previous_mac.ip_address),
+                    new_value=str(current_device.ip_address),
+                    description=f"IP Changed from {previous_mac.ip_address} to {current_device.ip_address}."
                 ))
 
     for previous_device in previous_devices:

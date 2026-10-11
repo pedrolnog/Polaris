@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS devices (
     ip_address INET NOT NULL,
     hostname TEXT,
     custom_name TEXT,
+    description TEXT,
     status VARCHAR(16) NOT NULL DEFAULT 'ONLINE',
     first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
